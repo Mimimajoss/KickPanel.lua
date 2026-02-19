@@ -1,21 +1,27 @@
--- Working Kick Panel - Save as "WorkingKickPanel.lua" on GitHub
+-- Enhanced Working Kick Panel - Better Visual Feedback
 
 local Players = game:GetService("Players")
 local player = Players.LocalPlayer
 local RunService = game:GetService("RunService")
 local TeleportService = game:GetService("TeleportService")
 
+-- Track kicked players to prevent them from showing if they rejoin
+if not _G.KickedPlayers then
+    _G.KickedPlayers = {}
+end
+local kickedPlayers = _G.KickedPlayers
+
 -- Create main GUI
 local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "WorkingKickPanel"
+ScreenGui.Name = "EnhancedKickPanel"
 ScreenGui.ResetOnSpawn = false
 ScreenGui.Parent = player:WaitForChild("PlayerGui")
 
 -- Main Frame
 local MainFrame = Instance.new("Frame")
 MainFrame.Name = "MainFrame"
-MainFrame.Size = UDim2.new(0, 450, 0, 550)
-MainFrame.Position = UDim2.new(0.5, -225, 0.5, -275)
+MainFrame.Size = UDim2.new(0, 500, 0, 600)
+MainFrame.Position = UDim2.new(0.5, -250, 0.5, -300)
 MainFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
 MainFrame.BorderSizePixel = 0
 MainFrame.Parent = ScreenGui
@@ -23,9 +29,9 @@ MainFrame.Parent = ScreenGui
 -- Purple/Pink Gradient
 local Gradient = Instance.new("UIGradient")
 Gradient.Color = ColorSequence.new({
-    ColorSequenceKeypoint.new(0, Color3.fromRGB(128, 0, 128)),    -- Purple
-    ColorSequenceKeypoint.new(0.5, Color3.fromRGB(186, 85, 211)), -- Medium Purple
-    ColorSequenceKeypoint.new(1, Color3.fromRGB(255, 105, 180))   -- Pink
+    ColorSequenceKeypoint.new(0, Color3.fromRGB(128, 0, 128)),
+    ColorSequenceKeypoint.new(0.5, Color3.fromRGB(186, 85, 211)),
+    ColorSequenceKeypoint.new(1, Color3.fromRGB(255, 105, 180))
 })
 Gradient.Rotation = 45
 Gradient.Parent = MainFrame
@@ -41,7 +47,7 @@ local Title = Instance.new("TextLabel")
 Title.Size = UDim2.new(1, -40, 1, 0)
 Title.Position = UDim2.new(0, 10, 0, 0)
 Title.BackgroundTransparency = 1
-Title.Text = "👢 WORKING KICK PANEL"
+Title.Text = "👢 ENHANCED KICK PANEL"
 Title.TextColor3 = Color3.fromRGB(255, 255, 255)
 Title.Font = Enum.Font.GothamBold
 Title.TextSize = 20
@@ -63,10 +69,42 @@ CloseBtn.MouseButton1Click:Connect(function()
     ScreenGui:Destroy()
 end)
 
+-- Create notification frame (for kick confirmations)
+local NotificationFrame = Instance.new("Frame")
+NotificationFrame.Size = UDim2.new(1, -20, 0, 40)
+NotificationFrame.Position = UDim2.new(0, 10, 0, 55)
+NotificationFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+NotificationFrame.BorderSizePixel = 0
+NotificationFrame.Visible = false
+NotificationFrame.Parent = MainFrame
+
+local NotificationText = Instance.new("TextLabel")
+NotificationText.Size = UDim2.new(1, -10, 1, 0)
+NotificationText.Position = UDim2.new(0, 5, 0, 0)
+NotificationText.BackgroundTransparency = 1
+NotificationText.Text = ""
+NotificationText.TextColor3 = Color3.fromRGB(0, 255, 0)
+NotificationText.Font = Enum.Font.GothamBold
+NotificationText.TextSize = 14
+NotificationText.TextXAlignment = Enum.TextXAlignment.Center
+NotificationText.Parent = NotificationFrame
+
+-- Kick counter
+local KickCounter = Instance.new("TextLabel")
+KickCounter.Size = UDim2.new(0, 100, 0, 30)
+KickCounter.Position = UDim2.new(1, -110, 0, 60)
+KickCounter.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+KickCounter.BorderSizePixel = 0
+KickCounter.Text = "Kicks: 0"
+KickCounter.TextColor3 = Color3.fromRGB(255, 105, 180)
+KickCounter.Font = Enum.Font.GothamBold
+KickCounter.TextSize = 14
+KickCounter.Parent = MainFrame
+
 -- Player List
 local PlayerList = Instance.new("ScrollingFrame")
-PlayerList.Size = UDim2.new(1, -20, 1, -70)
-PlayerList.Position = UDim2.new(0, 10, 0, 60)
+PlayerList.Size = UDim2.new(1, -20, 1, -120)
+PlayerList.Position = UDim2.new(0, 10, 0, 100)
 PlayerList.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
 PlayerList.BackgroundTransparency = 0.3
 PlayerList.BorderSizePixel = 0
@@ -91,12 +129,30 @@ SearchBar.Font = Enum.Font.Gotham
 SearchBar.TextSize = 14
 SearchBar.Parent = PlayerList
 
--- Multiple kick methods for maximum effectiveness
+-- Function to show notification
+local function showNotification(text, color)
+    NotificationText.Text = text
+    NotificationText.TextColor3 = color or Color3.fromRGB(0, 255, 0)
+    NotificationFrame.Visible = true
+    
+    -- Hide after 3 seconds
+    task.wait(3)
+    NotificationFrame.Visible = false
+end
+
+-- Update kick counter
+local kickCount = 0
+local function updateKickCounter()
+    kickCount = kickCount + 1
+    KickCounter.Text = "Kicks: " .. kickCount
+end
+
+-- Multiple kick methods
 local function kickPlayerWithMethods(targetPlayer)
     local methods = {}
     local success = false
     
-    -- Method 1: Direct kick (works in most games)
+    -- Method 1: Direct kick
     table.insert(methods, function()
         pcall(function()
             targetPlayer:Kick("Kicked by admin panel")
@@ -110,68 +166,34 @@ local function kickPlayerWithMethods(targetPlayer)
         end)
     end)
     
-    -- Method 3: Clear character and respawn (causes infinite loop)
+    -- Method 3: Clear character
     table.insert(methods, function()
         pcall(function()
-            local character = targetPlayer.Character
-            if character then
-                character:Destroy()
+            if targetPlayer.Character then
+                targetPlayer.Character:Destroy()
             end
         end)
     end)
     
-    -- Method 4: Crash client
-    table.insert(methods, function()
-        pcall(function()
-            local remote = Instance.new("RemoteEvent")
-            remote.Name = "CrashRemote"
-            remote.Parent = targetPlayer.PlayerGui
-            
-            for i = 1, 1000 do
-                remote:FireClient(targetPlayer, ("a"):rep(10000))
-            end
-        end)
-    end)
-    
-    -- Method 5: Network kick via teleport
+    -- Method 4: Network kick via teleport
     table.insert(methods, function()
         pcall(function()
             TeleportService:Teleport(0, targetPlayer)
         end)
     end)
     
-    -- Method 6: Void loop (stuck in loading)
+    -- Method 5: Crash client
     table.insert(methods, function()
         pcall(function()
-            targetPlayer:LoadCharacter()
-            targetPlayer:LoadCharacter()
-            targetPlayer:LoadCharacter()
-        end)
-    end)
-    
-    -- Method 7: Exploit network ownership
-    table.insert(methods, function()
-        pcall(function()
-            if targetPlayer.Character then
-                local humanoid = targetPlayer.Character:FindFirstChild("Humanoid")
-                if humanoid then
-                    humanoid:Destroy()
-                end
+            local remote = Instance.new("RemoteEvent")
+            remote.Name = "CrashRemote"
+            remote.Parent = targetPlayer.PlayerGui
+            for i = 1, 100 do
+                remote:FireClient(targetPlayer, ("a"):rep(10000))
             end
         end)
     end)
     
-    -- Method 8: Force disconnect via remote
-    table.insert(methods, function()
-        pcall(function()
-            local remoteFunction = Instance.new("RemoteFunction")
-            remoteFunction.Name = "KickFunction"
-            remoteFunction.Parent = targetPlayer.PlayerGui
-            remoteFunction:InvokeClient(targetPlayer)
-        end)
-    end)
-    
-    -- Try all methods
     for i, method in ipairs(methods) do
         local mSuccess, mError = pcall(method)
         if mSuccess then
@@ -181,7 +203,7 @@ local function kickPlayerWithMethods(targetPlayer)
         else
             print("⚠️ Method " .. i .. " failed: " .. tostring(mError))
         end
-        wait(0.1) -- Small delay between methods
+        task.wait(0.1)
     end
     
     return success
@@ -189,17 +211,31 @@ end
 
 -- Function to create player entry
 local function createPlayerEntry(ply)
+    -- Check if player was already kicked
+    if kickedPlayers[ply.UserId] then
+        return nil
+    end
+    
     local entry = Instance.new("Frame")
     entry.Name = ply.Name
-    entry.Size = UDim2.new(1, -20, 0, 60)
+    entry.Size = UDim2.new(1, -20, 0, 70)
     entry.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
     entry.BorderSizePixel = 0
     entry.Parent = PlayerList
     
+    -- Player avatar/icon
+    local avatar = Instance.new("ImageLabel")
+    avatar.Size = UDim2.new(0, 50, 0, 50)
+    avatar.Position = UDim2.new(0, 5, 0.5, -25)
+    avatar.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+    avatar.BorderSizePixel = 0
+    avatar.Image = "rbxthumb://type=AvatarHeadShot&id=" .. ply.UserId .. "&w=48&h=48"
+    avatar.Parent = entry
+    
     -- Player info
     local nameLabel = Instance.new("TextLabel")
-    nameLabel.Size = UDim2.new(0.5, -10, 0, 25)
-    nameLabel.Position = UDim2.new(0, 10, 0, 5)
+    nameLabel.Size = UDim2.new(0.4, -10, 0, 25)
+    nameLabel.Position = UDim2.new(0, 60, 0, 10)
     nameLabel.BackgroundTransparency = 1
     nameLabel.Text = ply.Name
     nameLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
@@ -209,8 +245,8 @@ local function createPlayerEntry(ply)
     nameLabel.Parent = entry
     
     local idLabel = Instance.new("TextLabel")
-    idLabel.Size = UDim2.new(0.5, -10, 0, 20)
-    idLabel.Position = UDim2.new(0, 10, 0, 30)
+    idLabel.Size = UDim2.new(0.4, -10, 0, 20)
+    idLabel.Position = UDim2.new(0, 60, 0, 35)
     idLabel.BackgroundTransparency = 1
     idLabel.Text = "ID: " .. ply.UserId
     idLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
@@ -233,36 +269,60 @@ local function createPlayerEntry(ply)
     
     -- Kick button click
     kickBtn.MouseButton1Click:Connect(function()
-        -- Disable button to prevent double-click
-        kickBtn.Text = "KICKING..."
-        kickBtn.BackgroundColor3 = Color3.fromRGB(150, 150, 150)
+        -- Disable button
+        kickBtn.Text = "⚡"
+        kickBtn.BackgroundColor3 = Color3.fromRGB(255, 165, 0)
         kickBtn.Active = false
         
-        -- Show status
-        local status = Instance.new("TextLabel")
-        status.Size = UDim2.new(0, 200, 0, 30)
-        status.Position = UDim2.new(0.5, -100, 0, -40)
-        status.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
-        status.BackgroundTransparency = 0.3
-        status.Text = "Attempting to kick " .. ply.Name .. "..."
-        status.TextColor3 = Color3.fromRGB(255, 255, 255)
-        status.Font = Enum.Font.Gotham
-        status.TextSize = 14
-        status.Parent = entry
+        -- Create progress bar
+        local progressBar = Instance.new("Frame")
+        progressBar.Size = UDim2.new(1, 0, 0, 3)
+        progressBar.Position = UDim2.new(0, 0, 1, -3)
+        progressBar.BackgroundColor3 = Color3.fromRGB(0, 255, 0)
+        progressBar.BackgroundTransparency = 0.5
+        progressBar.Parent = entry
+        
+        local progress = Instance.new("Frame")
+        progress.Size = UDim2.new(0, 0, 1, 0)
+        progress.BackgroundColor3 = Color3.fromRGB(0, 255, 0)
+        progress.Parent = progressBar
+        
+        -- Animate progress
+        for i = 1, 100 do
+            progress.Size = UDim2.new(i/100, 0, 1, 0)
+            task.wait(0.01)
+        end
         
         -- Try to kick
         local success = kickPlayerWithMethods(ply)
         
         if success then
-            status.Text = "✅ Kicked: " .. ply.Name
-            status.TextColor3 = Color3.fromRGB(0, 255, 0)
-            wait(1)
+            progressBar.BackgroundColor3 = Color3.fromRGB(0, 255, 0)
+            progress.BackgroundColor3 = Color3.fromRGB(0, 255, 0)
+            
+            -- Store as kicked
+            kickedPlayers[ply.UserId] = true
+            
+            -- Update counter
+            updateKickCounter()
+            
+            -- Show notification
+            showNotification("✅ Kicked: " .. ply.Name, Color3.fromRGB(0, 255, 0))
+            
+            -- Remove entry with fade
+            for i = 1, 10 do
+                entry.BackgroundTransparency = i/10
+                task.wait(0.03)
+            end
             entry:Destroy()
         else
-            status.Text = "❌ Failed to kick: " .. ply.Name
-            status.TextColor3 = Color3.fromRGB(255, 0, 0)
-            wait(2)
-            status:Destroy()
+            progressBar.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
+            progress.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
+            
+            showNotification("❌ Failed to kick: " .. ply.Name, Color3.fromRGB(255, 0, 0))
+            
+            task.wait(1)
+            progressBar:Destroy()
             
             -- Re-enable button
             kickBtn.Text = "KICK"
@@ -276,7 +336,7 @@ end
 
 -- Update player list
 local function updatePlayerList()
-    -- Clear existing entries (except search bar and layout)
+    -- Clear existing entries
     for _, child in ipairs(PlayerList:GetChildren()) do
         if child:IsA("Frame") then
             child:Destroy()
@@ -287,12 +347,15 @@ local function updatePlayerList()
     SearchBar.Parent = PlayerList
     
     -- Add players
-    local yPos = 50
     for _, ply in ipairs(Players:GetPlayers()) do
-        if ply ~= player then
+        if ply ~= player and not kickedPlayers[ply.UserId] then
             createPlayerEntry(ply)
         end
     end
+    
+    -- Show player count
+    local playerCount = #Players:GetPlayers() - 1 - table.count(kickedPlayers)
+    Title.Text = "👢 ENHANCED KICK PANEL (" .. playerCount .. " players)"
 end
 
 -- Search functionality
@@ -310,10 +373,13 @@ SearchBar:GetPropertyChangedSignal("Text"):Connect(function()
     end
 end)
 
--- Update when players join/leave
-Players.PlayerAdded:Connect(function()
-    wait(0.5)
-    updatePlayerList()
+-- Update when players join
+Players.PlayerAdded:Connect(function(newPlayer)
+    task.wait(0.5)
+    -- Only add if not previously kicked
+    if not kickedPlayers[newPlayer.UserId] then
+        updatePlayerList()
+    end
 end)
 
 Players.PlayerRemoving:Connect(function()
@@ -358,6 +424,13 @@ end)
 -- Initial update
 updatePlayerList()
 
-print("✅ Working Kick Panel Loaded Successfully")
-print("📋 Kick methods loaded: 8 different techniques")
-print("⚡ Panel will attempt all methods until player is kicked")
+-- Add table.count function if it doesn't exist
+table.count = table.count or function(t)
+    local count = 0
+    for _ in pairs(t) do count = count + 1 end
+    return count
+end
+
+print("✅ Enhanced Kick Panel Loaded Successfully")
+print("📋 Tracked kicked players: They won't reappear if they rejoin")
+print("⚡ Visual feedback added: Progress bar and notifications")
